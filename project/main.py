@@ -4,10 +4,10 @@ from bs4 import BeautifulSoup
 
 torrent_site_root = "https://torrentkim5.net"
 torrent_name = "utorrent.exe "
-
+torrent_option = "/directory K:\\Files\\torrent\\mp3 "
 
 def openMagnet(magnet_url):
-    os.system(torrent_name + magnet_url)
+    os.system(torrent_name + torrent_option + magnet_url)
 
 
 def getMagnet(url):
