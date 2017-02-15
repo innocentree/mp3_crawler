@@ -1,13 +1,14 @@
 import os
+import codecs
 import requests
 from bs4 import BeautifulSoup
 
 torrent_site_root = "https://torrentkim5.net"
-torrent_name = "utorrent.exe "
-torrent_option = "/directory K:\\Files\\torrent\\mp3 "
+torrent_name = "transmission-remote.exe "
+torrent_option = "-w K:\\Files\\torrent\\mp3 "
 
-def openMagnet(magnet_url):
-    os.system(torrent_name + torrent_option + magnet_url)
+def openMagnet(magnet_url, file_name):
+    os.system(torrent_name + torrent_option + "-a " + magnet_url + " --torrent-done-script " + file_name)
 
 
 def getMagnet(url):
@@ -32,6 +33,14 @@ def search(find_word):
                 break
     return ''
 
+
+def makeRemoveScript(local_magnet):
+    file_name = "arc.txt"
+    fp = open(file_name, mode='w', encoding='utf=8')
+    fp.write("transmission-remote.exe -t " + magnet.rsplit(':', 1)[1] + " -r")
+    return file_name
+
+
 sub_url = search('멜론')
 
 # url 에 .. 이 잘못된 위치에 있으면
@@ -39,5 +48,13 @@ sub_url = search('멜론')
 # 같은 에러 발생..
 total_str = str(torrent_site_root + sub_url).replace('..', '')
 magnet = getMagnet(total_str)
-openMagnet(magnet)
+script_name = makeRemoveScript(magnet)
+openMagnet(magnet, script_name)
 
+
+
+#fs = codecs.open('C:\\Users\\JYLee\\AppData\\Roaming\\uTorrent\\' + 'resume.dat', 'rb', 'utf-8', errors='ignore')
+#lines = fs.readlines()
+#for i in lines:
+#    print(i)
+#fs.close()
