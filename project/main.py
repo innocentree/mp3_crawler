@@ -5,10 +5,12 @@ from bs4 import BeautifulSoup
 
 torrent_site_root = "https://torrentkim5.net"
 torrent_name = "transmission-remote.exe "
-torrent_option = "-w K:\\Files\\torrent\\mp3 "
+torrent_option = "--download-dir /cygdrive/k/Files/torrent/mp3/ "
 
 def openMagnet(magnet_url, file_name):
-    os.system(torrent_name + torrent_option + "-a " + magnet_url + " --torrent-done-script " + file_name)
+    full_cmd = torrent_name + torrent_option + "-a " + magnet_url + " --torrent-done-script " + file_name
+    os.system(full_cmd)
+    print(full_cmd)
 
 
 def getMagnet(url):
