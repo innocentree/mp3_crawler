@@ -1,11 +1,11 @@
 import os
-import codecs
 import requests
 from bs4 import BeautifulSoup
 from tkinter import *
 from tkinter.ttk import *
 import time
 import subprocess
+import psutil
 
 # UI 참고
 # https://github.com/jinsyu/pyto/blob/master/pyto.py
@@ -89,7 +89,8 @@ class Crawler:
         self.root = root
         self.txt = Text(self.root)
         self.txt.pack(fill=X, padx=10, pady=10)
-        os.system("call \"C:/Program Files (x86)/TransmissionD/bin/restart.exe\"")
+        if self.checkActiveProcess() is False:
+            os.system("call \"C:/Program Files (x86)/TransmissionD/bin/start.exe\"")
         self.print("program start.")
 
     def __exit__(self):
@@ -154,10 +155,20 @@ class Crawler:
         if magnet != "":
            openMagnet(self, magnet)
 
+    def checkActiveProcess(self):
+        self.print("check active transmission process...")
+        pids = psutil.process_iter()
+        found = False
+        for pid in pids:
+            if pid.name().upper().lower().find("transmission-daemon.exe") > -1:
+                self.print(pid.name().upper().lower() + "is started")
+                found = True
+        return found
+
+
     def print(self, txt):
         print(txt)
         self.txt.insert(INSERT, txt)
-        print('\n')
         self.txt.insert(INSERT, '\n')
 
 
@@ -166,9 +177,9 @@ root.title('mp3 crawler v1.0')
 root.geometry('300x300+100+100')
 
 crawler = Crawler(root)
-crawler.removing()
-crawler.update()
-root.mainloop()
+crawler.checkActiveProcess()
+#crawler.update()
+#root.mainloop()
 
 
 '''
