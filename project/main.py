@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 from tkinter import *
 from tkinter.ttk import *
 import time
+import subprocess
 
 # UI 참고
 # https://github.com/jinsyu/pyto/blob/master/pyto.py
@@ -14,6 +15,15 @@ torrent_name = "transmission-remote.exe "
 torrent_option = " --download-dir /cygdrive/k/Files/torrent/mp3/ "
 search_keyword = '멜론'
 
+down_time = time.strptime("07:00", "%H:%M")
+# 매일 7시마다 토렌트 다운
+
+remove_time = time.strptime("14:00", "%H:%M")
+# 매일 14시마다 토렌트 제거
+
+
+download_flag = False
+remove_flag = False
 
 def openMagnet(parant, magnet_url):
     file_name = "last_torrent.txt"
@@ -68,10 +78,11 @@ def makeRemoveScript(local_magnet):
 '''
 
 
+def checkTime(time1, time2) :
+    if time1.tm_hour is time2.tm_hour and time1.tm_min is time2.tm_min:
+        return True
+    return False
 
-check_time_h = 7  # 매일 7시마다 토렌트 다운
-check_time_m = 0
-download_flag = False
 
 class Crawler:
     def __init__(self, root):
@@ -83,22 +94,54 @@ class Crawler:
 
     def __exit__(self):
         os.system("call \"C:/Program Files (x86)/TransmissionD/bin/stop.exe\"")
+        return
 
     def update(self):
         lst = time.localtime()
         global download_flag
+        global remove_flag
 
         if download_flag is False:
-            if lst.tm_hour is check_time_h and lst.tm_min is check_time_m:
+            if checkTime(lst, down_time):
                 self.print("finding start.")
                 download_flag = True
 
         if download_flag is True:
-            if lst.tm_hour == check_time_h and lst.tm_min == (check_time_m+1):
+            temp_time = down_time
+            down_time.tm_min += 1
+            if checkTime(lst, temp_time):
                 download_flag = False
                 self.crawling()
 
+        if remove_flag is False:
+            if checkTime(lst, remove_time):
+                self.print("removing start.")
+                remove_flag = True
+
+        if remove_flag is True:
+            temp_time = remove_time
+            temp_time.tm_min += 1
+            if checkTime(lst, temp_time):
+                remove_flag = False
+                self.removing()
+
         self.root.after(1, self.update)
+
+    def removing(self):
+        ret = subprocess.check_output("transmission-remote.exe -l", shell=True)
+        self.print(ret)
+        remove_id = -1
+
+        for line in str(ret).split(sep='\\n'):
+            if line.find("100%") > -1:
+                remove_id = int(line.strip().split(maxsplit=1)[0])
+                self.print("REMOVE ID : " + remove_id)
+                remove_ret = subprocess.check_output("transmission-remote.exe -t " + str(remove_id) + " -r", shell=True)
+                self.print(remove_ret)
+
+        if remove_id is -1:
+            self.print("active torrent not found.")
+
 
     def crawling(self):
         sub_url = search(search_keyword)
@@ -109,18 +152,21 @@ class Crawler:
         magnet = getMagnet(total_str)
         self.print("found magnet : " + magnet)
         if magnet != "":
-           #script_name = makeRemoveScript(magnet)
            openMagnet(self, magnet)
 
     def print(self, txt):
+        print(txt)
         self.txt.insert(INSERT, txt)
+        print('\n')
         self.txt.insert(INSERT, '\n')
+
 
 root = Tk()
 root.title('mp3 crawler v1.0')
 root.geometry('300x300+100+100')
 
 crawler = Crawler(root)
+crawler.removing()
 crawler.update()
 root.mainloop()
 
