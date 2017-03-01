@@ -2,7 +2,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from tkinter import *
-from tkinter.ttk import *
+from tkinter import scrolledtext
 import time
 import subprocess
 import psutil
@@ -13,17 +13,17 @@ import psutil
 torrent_site_root = "https://torrentkim5.net"
 torrent_name = "transmission-remote.exe "
 torrent_option = " --download-dir /cygdrive/k/Files/torrent/mp3/ "
+downloaded_folder = "k:\\Files\\torrent\\mp3\\"
 search_keyword = '멜론'
 
 down_time = time.strptime("07:00", "%H:%M")
 # 매일 7시마다 토렌트 다운
 
-remove_time = time.strptime("14:00", "%H:%M")
+# remove_time = time.strptime("14:00", "%H:%M")
 # 매일 14시마다 토렌트 제거
+remove_term_m = 30
+# 30분마다 토렌트 제거 로직 수행
 
-
-download_flag = False
-remove_flag = False
 
 def openMagnet(parant, magnet_url):
     file_name = "last_torrent.txt"
@@ -39,7 +39,7 @@ def openMagnet(parant, magnet_url):
         parant.print('new mp3s not found')
         return
     else:
-        full_cmd = torrent_name + torrent_option + "-a " + magnet_url  # + " --torrent-done-script " + "/cygdrive/c/" + file_name
+        full_cmd = torrent_name + torrent_option + "-a " + magnet_url
         os.system(full_cmd + "> LOG.TXT")
         parant.print(full_cmd)
         fp = open(file_name, mode='w', encoding='utf-8')
@@ -78,53 +78,92 @@ def makeRemoveScript(local_magnet):
 '''
 
 
-def checkTime(time1, time2) :
+def checkTime(time1, time2):
     if time1.tm_hour is time2.tm_hour and time1.tm_min is time2.tm_min:
         return True
     return False
 
 
 class Crawler:
-    def __init__(self, root):
-        self.root = root
-        self.txt = Text(self.root)
-        self.txt.pack(fill=X, padx=10, pady=10)
-        if self.checkActiveProcess() is False:
-            os.system("call \"C:/Program Files (x86)/TransmissionD/bin/start.exe\"")
+    def __init__(self, in_root):
+        self.root = in_root
+
+        frame1 = Frame(self.root)
+        frame1.pack(side=TOP, fill=X)
+
+        label1 = Label(frame1, text="down_flag")
+        label1.pack(side=LEFT)
+
+        self.df_txt = StringVar()
+        self.down_state_flag = Entry(frame1, textvariable=self.df_txt)
+        self.down_state_flag.config(width=5, state='readonly')
+        self.down_state_flag.pack(side=LEFT)
+
+        label2 = Label(frame1, text="remove_flag")
+        label2.pack(side=LEFT)
+
+        self.rf_txt = StringVar()
+        self.remove_state_flag = Entry(frame1, textvariable=self.rf_txt)
+        self.remove_state_flag.config(width=5, state='readonly')
+        self.remove_state_flag.pack(side=LEFT)
+
+        removing_btn = Button(frame1, text="즉시제거", command=self.removing)
+        removing_btn.pack(side=RIGHT, padx=10)
+        crawling_btn = Button(frame1, text="즉시다운", command=self.crawling)
+        crawling_btn.pack(side=RIGHT, padx=10)
+
+        frame2 = Frame(self.root)
+        frame2.pack(side=TOP)
+
+        self.txt_box = scrolledtext.ScrolledText(frame2, width=100, height=10, padx=10, pady=10)
+        self.txt_box.pack(side=LEFT)
+
         self.print("program start.")
 
-    def __exit__(self):
-        os.system("call \"C:/Program Files (x86)/TransmissionD/bin/stop.exe\"")
-        return
+        self.check_counter = time.time()
+
+        if self.checkActiveProcess() is False:
+            self.print(" - transmission-daemon will start soon")
+            os.system("call \"C:/Program Files (x86)/TransmissionD/bin/start.exe\"")
+        else:
+            self.print(" - transmission-daemon already started")
+
+    def __del__(self):
+        count = 0
+        while self.checkActiveProcess() is True:
+            count += 1
+            print("stop transmission-daemon[" + str(count) + "]")
+            os.system("call \"C:/Program Files (x86)/TransmissionD/bin/stop.exe\"")
 
     def update(self):
         lst = time.localtime()
-        global download_flag
-        global remove_flag
+        self.rf_txt.set(str(self.remove_flag))
+        self.df_txt.set(str(self.download_flag))
 
-        if download_flag is False:
+        if self.download_flag is False:
             if checkTime(lst, down_time):
                 self.print("finding start.")
-                download_flag = True
+                self.download_flag = True
 
-        if download_flag is True:
-            temp_time = down_time
-            down_time.tm_min += 1
+        if self.download_flag is True:
+            temp_time = time.strptime(str(down_time.tm_hour)+":"+str(down_time.tm_min + 1), "%H:%M")
             if checkTime(lst, temp_time):
-                download_flag = False
+                self.download_flag = False
                 self.crawling()
 
-        if remove_flag is False:
-            if checkTime(lst, remove_time):
-                self.print("removing start.")
-                remove_flag = True
+        if time.time() - self.check_counter >= remove_term_m * 60:
+            self.check_counter = time.time()
+        # if self.remove_flag is False:
+        #    if checkTime(lst, remove_time):
+            self.print("removing start.")
+        # self.remove_flag = True
 
-        if remove_flag is True:
-            temp_time = remove_time
-            temp_time.tm_min += 1
-            if checkTime(lst, temp_time):
-                remove_flag = False
-                self.removing()
+        # if self.remove_flag is True:
+        #    temp_time = remove_time
+        #    temp_time.tm_min += 1
+        #    if checkTime(lst, temp_time):
+        #        self.remove_flag = False
+            self.removing()
 
         self.root.after(1, self.update)
 
@@ -136,13 +175,12 @@ class Crawler:
         for line in str(ret).split(sep='\\n'):
             if line.find("100%") > -1:
                 remove_id = int(line.strip().split(maxsplit=1)[0])
-                self.print("REMOVE ID : " + remove_id)
+                self.print("REMOVE ID : " + str(remove_id))
                 remove_ret = subprocess.check_output("transmission-remote.exe -t " + str(remove_id) + " -r", shell=True)
                 self.print(remove_ret)
 
         if remove_id is -1:
-            self.print("active torrent not found.")
-
+            self.print("finished torrent not found.")
 
     def crawling(self):
         sub_url = search(search_keyword)
@@ -154,30 +192,101 @@ class Crawler:
         self.print("found magnet : " + magnet)
         if magnet != "":
            openMagnet(self, magnet)
+           self.eraseDuplicatedFiles()
 
     def checkActiveProcess(self):
-        self.print("check active transmission process...")
+        print("check active transmission process...")
         pids = psutil.process_iter()
         found = False
         for pid in pids:
             if pid.name().upper().lower().find("transmission-daemon.exe") > -1:
-                self.print(pid.name().upper().lower() + "is started")
+                print(pid.name().upper().lower() + " is started")
                 found = True
         return found
 
+    def eraseDuplicatedFiles(self):
+        latest_path = ""
+        all_path = []
+        latest_time = 0
+
+        for e in os.listdir(downloaded_folder):
+            all_path.append(e)
+
+        for dirs in all_path:
+            #print("folder name : " + downloaded_folder + dirs)
+            #print("create time : " + str(datetime.datetime.fromtimestamp(os.path.getctime(downloaded_folder + dirs))))
+            if latest_time < os.path.getctime(downloaded_folder + dirs):
+                latest_time = os.path.getctime(downloaded_folder + dirs)
+                latest_path = downloaded_folder + dirs
+
+        print("latest folder : " + latest_path)
+        if latest_path is "":
+            return
+
+        check_path = []
+        print("----------------------------")
+        for e in all_path:
+            if downloaded_folder + e != latest_path:
+                check_path.append(e)
+                print("check list path : " + e)
+        print("----------------------------")
+
+        latest_file_list = []
+        for file in os.listdir(latest_path):
+            latest_file_list.append(latest_path + "\\" + file)
+
+        for path in check_path:
+            print("checking path : " + path)
+            old_files = os.listdir(downloaded_folder + path)
+            for file in old_files:
+                real_path = os.path.realpath(file)
+                for new_file in latest_file_list:
+                    f1 = open(new_file, 'rb')
+                    old_filename = downloaded_folder + path + "\\" + file
+                    f2 = open(old_filename, 'rb')
+                    if f1.read() == f2.read():
+                        f1.close()
+                        f2.close()
+                        print("new: " + new_file)
+                        print("old: " + old_filename)
+                        os.remove(old_filename)
+                        break
+                    else:
+                        f1.close()
+                        f2.close()
 
     def print(self, txt):
         print(txt)
-        self.txt.insert(INSERT, txt)
-        self.txt.insert(INSERT, '\n')
+        self.txt_box.insert(INSERT, txt)
+        self.txt_box.insert(INSERT, '\n')
+        self.txt_box.insert(INSERT, '\n')
+
+    download_flag = False
+    df_txt = ''
+    remove_flag = False
+    rf_txt = ''
+    check_counter = 0
 
 
 root = Tk()
 root.title('mp3 crawler v1.0')
-root.geometry('300x300+100+100')
+root.resizable(0, 0)
+
 
 crawler = Crawler(root)
-crawler.checkActiveProcess()
+crawler.eraseDuplicatedFiles()
+'''
+f1 = open("c:\\1.mp3", 'rb')
+f2 = open("c:\\3.mp3", 'rb')
+if f1.read() == f2.read():
+    print("1")
+else:
+    print("2")
+
+f1.close()
+f2.close()
+'''
+#print(str(subprocess.getoutput("comp 1.mp3 2.mp3")))
 #crawler.update()
 #root.mainloop()
 
