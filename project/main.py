@@ -6,6 +6,7 @@ from tkinter import scrolledtext
 import time
 import subprocess
 import psutil
+from mutagen.mp3 import MP3
 
 # UI 참고
 # https://github.com/jinsyu/pyto/blob/master/pyto.py
@@ -19,8 +20,9 @@ search_keyword = '멜론'
 down_time = time.strptime("07:00", "%H:%M")
 # 매일 7시마다 토렌트 다운
 
-# remove_time = time.strptime("14:00", "%H:%M")
-# 매일 14시마다 토렌트 제거
+cleaning_time = time.strptime("04:00", "%H:%M")
+# 매일 새벽 4시에 중복 파일 제거
+
 remove_term_m = 30
 # 30분마다 토렌트 제거 로직 수행
 
@@ -107,6 +109,8 @@ class Crawler:
         self.remove_state_flag.config(width=5, state='readonly')
         self.remove_state_flag.pack(side=LEFT)
 
+        check_dup_btn = Button(frame1, text="중복파일정리", command=self.eraseDuplicatedFiles)
+        check_dup_btn.pack(side=RIGHT, padx=10)
         removing_btn = Button(frame1, text="즉시제거", command=self.removing)
         removing_btn.pack(side=RIGHT, padx=10)
         crawling_btn = Button(frame1, text="즉시다운", command=self.crawling)
@@ -151,18 +155,20 @@ class Crawler:
                 self.download_flag = False
                 self.crawling()
 
+        if self.cleaning_flag is False:
+            if checkTime(lst, cleaning_time):
+                self.print("cleaning start.")
+                self.cleaning_flag = True
+
+        if self.cleaning_flag is True:
+            temp_time = time.strptime(str(cleaning_time.tm_hour) + ":" + str(cleaning_time.tm_min + 1), "%H:%M")
+            if checkTime(lst, temp_time):
+                self.cleaning_flag = False
+                self.eraseDuplicatedFiles()
+
         if time.time() - self.check_counter >= remove_term_m * 60:
             self.check_counter = time.time()
-        # if self.remove_flag is False:
-        #    if checkTime(lst, remove_time):
             self.print("removing start.")
-        # self.remove_flag = True
-
-        # if self.remove_flag is True:
-        #    temp_time = remove_time
-        #    temp_time.tm_min += 1
-        #    if checkTime(lst, temp_time):
-        #        self.remove_flag = False
             self.removing()
 
         self.root.after(1, self.update)
@@ -213,8 +219,6 @@ class Crawler:
             all_path.append(e)
 
         for dirs in all_path:
-            #print("folder name : " + downloaded_folder + dirs)
-            #print("create time : " + str(datetime.datetime.fromtimestamp(os.path.getctime(downloaded_folder + dirs))))
             if latest_time < os.path.getctime(downloaded_folder + dirs):
                 latest_time = os.path.getctime(downloaded_folder + dirs)
                 latest_path = downloaded_folder + dirs
@@ -235,25 +239,27 @@ class Crawler:
         for file in os.listdir(latest_path):
             latest_file_list.append(latest_path + "\\" + file)
 
-        for path in check_path:
-            print("checking path : " + path)
-            old_files = os.listdir(downloaded_folder + path)
-            for file in old_files:
-                real_path = os.path.realpath(file)
-                for new_file in latest_file_list:
-                    f1 = open(new_file, 'rb')
-                    old_filename = downloaded_folder + path + "\\" + file
-                    f2 = open(old_filename, 'rb')
-                    if f1.read() == f2.read():
-                        f1.close()
-                        f2.close()
-                        print("new: " + new_file)
-                        print("old: " + old_filename)
-                        os.remove(old_filename)
+        for new_file in latest_file_list:
+            if new_file.find('.mp3') == -1:
+                continue
+            f2 = MP3(new_file)
+            substr = self.getSubStr(f2)
+            print("finding key : " + substr)
+            for path in check_path:
+                print("checking path : " + path)
+                old_files = os.listdir(downloaded_folder + path)
+                for file in old_files:
+                    if file.find('.mp3') == -1:
+                        continue
+                    old_file = downloaded_folder + path + "\\" + file
+                    f1 = MP3(old_file)
+                    if abs(f1.info.length - f2.info.length) > 2:
+                        continue
+                    if str(f1).find(substr) > 0:
+                        self.print("new: " + new_file)
+                        self.print("old: " + old_file + "was deleted.")
+                        os.remove(old_file)
                         break
-                    else:
-                        f1.close()
-                        f2.close()
 
     def print(self, txt):
         print(txt)
@@ -261,10 +267,18 @@ class Crawler:
         self.txt_box.insert(INSERT, '\n')
         self.txt_box.insert(INSERT, '\n')
 
+    def getSubStr(self, text):
+        str_len = int(len(str(text)) / 2)
+        substr = ""
+        for i in range(str_len, str_len + 1000):
+            substr = substr + str(text)[i]
+        return substr
+
     download_flag = False
     df_txt = ''
     remove_flag = False
     rf_txt = ''
+    cleaning_flag = False
     check_counter = 0
 
 
@@ -274,38 +288,5 @@ root.resizable(0, 0)
 
 
 crawler = Crawler(root)
-crawler.eraseDuplicatedFiles()
-'''
-f1 = open("c:\\1.mp3", 'rb')
-f2 = open("c:\\3.mp3", 'rb')
-if f1.read() == f2.read():
-    print("1")
-else:
-    print("2")
-
-f1.close()
-f2.close()
-'''
-#print(str(subprocess.getoutput("comp 1.mp3 2.mp3")))
-#crawler.update()
-#root.mainloop()
-
-
-'''
-위젯	설명
-Button	단순한 버튼
-Label	텍스트 혹은 이미지 표시
-CheckButton	체크박스
-Entry	단순한 한 라인 텍스트 박스
-ListBox	리스트 박스
-RadioButton	옵션 버튼
-Message	Label과 비슷하게 텍스트 표시. Label과 달리 자동 래핑 기능이 있다.
-Scale	슬라이스 바
-Scrollbar	스크롤 바
-Text	멀티 라인 텍스트 박스로서 일부 Rich Text 기능 제공
-Menu	메뉴 Pane
-Menubutton	메뉴 버튼
-Toplevel	새 윈도우를 생성할 때 사용. Tk()는 윈도우를 자동으로 생성하지만 추가로 새 윈도우 혹은 다이얼로그를 만들 경우 Toplevel를 사용한다
-Frame	컨테이너 위젯. 다른 위젯들을 그룹화할 때 사용
-Canvas	그래프와 점들로 그림을 그릴 수 있으며, 커스텀 위젯을 만드는데 사용될 수도 있다
-'''
+crawler.update()
+root.mainloop()
