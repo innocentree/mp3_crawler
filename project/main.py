@@ -101,6 +101,8 @@ class Crawler:
         self.remove_state_flag.config(width=5, state='readonly')
         self.remove_state_flag.pack(side=LEFT)
 
+        check_dup_btn = Button(frame1, text="동기화 폴더 갱신", command=self.MoveFilesToNew)
+        check_dup_btn.pack(side=RIGHT, padx=10)
         check_dup_btn = Button(frame1, text="중복파일정리", command=self.eraseDuplicatedFiles)
         check_dup_btn.pack(side=RIGHT, padx=10)
         removing_btn = Button(frame1, text="즉시제거", command=self.removing)
@@ -159,9 +161,10 @@ class Crawler:
             temp_time = time.strptime(str(cleaning_time.tm_hour) + ":" + str(cleaning_time.tm_min + 1), "%H:%M")
             if checkTime(lst, temp_time):
                 self.cleaning_flag = False
-                new_path = self.eraseDuplicatedFiles()
-                if new_path != "":
-                    self.MoveFilesToNew(new_path)
+                self.eraseDuplicatedFiles()
+                if self.new_path != "":
+                    self.MoveFilesToNew()
+
 
         if time.time() - self.check_counter >= remove_term_m * 60:
             self.check_counter = time.time()
@@ -170,13 +173,14 @@ class Crawler:
 
         self.root.after(1, self.update)
 
-    def MoveFilesToNew (self, path):
+    def MoveFilesToNew (self):
         new_path = "\"" + path + "\\..\\..\\newest_mp3\\" + "\""
         del_ret = subprocess.check_output("del " + new_path + "*.*" + " /Q", shell=True)
         self.print(del_ret)
         copy_ret = subprocess.check_output("copy " + "\"" + path + "\\*.*" + "\" " + new_path, shell=True)
         self.print(copy_ret)
         self.print("copy completed.")
+        self.new_path = ""
 
     def removing(self):
         ret = subprocess.check_output("transmission-remote.exe -l", shell=True)
@@ -230,7 +234,8 @@ class Crawler:
 
         print("latest folder : " + latest_path)
         if latest_path is "":
-            return ""
+            self.new_path = ""
+            return
 
         check_path = []
         cneck_count = 0
@@ -244,7 +249,8 @@ class Crawler:
 
         if cneck_count == 0:
             self.print("checking path not found.")
-            return latest_path
+            self.new_path = latest_path
+            return
 
         latest_file_list = []
         for file in os.listdir(latest_path):
@@ -271,8 +277,8 @@ class Crawler:
                         self.print("old: " + old_file + "was deleted.")
                         os.remove(old_file)
                         break
-
-        return latest_path
+        self.new_path = latest_path
+        return
 
     def print(self, txt):
         print(txt)
@@ -293,6 +299,7 @@ class Crawler:
     rf_txt = ''
     cleaning_flag = False
     check_counter = 0
+    new_path = ""
 
 
 root = Tk()
