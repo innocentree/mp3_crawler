@@ -71,14 +71,6 @@ def search(find_word):
                 break
     return ''
 
-'''
-def makeRemoveScript(local_magnet):
-    file_name = "arc.sh"
-    fp = open(file_name, mode='w', encoding='utf=8')
-    fp.write("transmission-remote.exe -t " + local_magnet.rsplit(':', 1)[1] + " -r" + "> LOG2.TXT")
-    return file_name
-'''
-
 
 def checkTime(time1, time2):
     if time1.tm_hour is time2.tm_hour and time1.tm_min is time2.tm_min:
@@ -139,6 +131,9 @@ class Crawler:
             print("stop transmission-daemon[" + str(count) + "]")
             os.system("call \"C:/Program Files (x86)/TransmissionD/bin/stop.exe\"")
 
+    def setEraseFlag (self):
+        self.cleaning_flag = True
+
     def update(self):
         lst = time.localtime()
         self.rf_txt.set(str(self.remove_flag))
@@ -164,7 +159,9 @@ class Crawler:
             temp_time = time.strptime(str(cleaning_time.tm_hour) + ":" + str(cleaning_time.tm_min + 1), "%H:%M")
             if checkTime(lst, temp_time):
                 self.cleaning_flag = False
-                self.eraseDuplicatedFiles()
+                new_path = self.eraseDuplicatedFiles()
+                if new_path != "":
+                    self.MoveFilesToNew(new_path)
 
         if time.time() - self.check_counter >= remove_term_m * 60:
             self.check_counter = time.time()
@@ -172,6 +169,14 @@ class Crawler:
             self.removing()
 
         self.root.after(1, self.update)
+
+    def MoveFilesToNew (self, path):
+        new_path = "\"" + path + "\\..\\..\\newest_mp3\\" + "\""
+        del_ret = subprocess.check_output("del " + new_path + "*.*" + " /Q", shell=True)
+        self.print(del_ret)
+        copy_ret = subprocess.check_output("copy " + "\"" + path + "\\*.*" + "\" " + new_path, shell=True)
+        self.print(copy_ret)
+        self.print("copy completed.")
 
     def removing(self):
         ret = subprocess.check_output("transmission-remote.exe -l", shell=True)
@@ -225,15 +230,21 @@ class Crawler:
 
         print("latest folder : " + latest_path)
         if latest_path is "":
-            return
+            return ""
 
         check_path = []
+        cneck_count = 0
         print("----------------------------")
         for e in all_path:
             if downloaded_folder + e != latest_path:
+                cneck_count+=1
                 check_path.append(e)
                 print("check list path : " + e)
         print("----------------------------")
+
+        if cneck_count == 0:
+            self.print("checking path not found.")
+            return latest_path
 
         latest_file_list = []
         for file in os.listdir(latest_path):
@@ -260,6 +271,8 @@ class Crawler:
                         self.print("old: " + old_file + "was deleted.")
                         os.remove(old_file)
                         break
+
+        return latest_path
 
     def print(self, txt):
         print(txt)
